@@ -192,6 +192,7 @@ impl Scanner {
     }
 
     fn add(&mut self, kind: TokenType) {
+        self.line += 1;
         self.last_token_line = self.line;
         self.tokens.push(Token {
             kind,
