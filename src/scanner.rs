@@ -8,6 +8,7 @@ pub fn scan(source: &str) -> (Vec<Token>, Vec<String>) {
         start: 0,
         current: 0,
         line: 1,
+        last_token_line: 1,
         tokens: Vec::new(),
         errors: Vec::new(),
     };
@@ -20,6 +21,7 @@ struct Scanner {
     start: usize,
     current: usize,
     line: usize,
+    last_token_line: usize,
     tokens: Vec<Token>,
     errors: Vec<String>,
 }
@@ -190,6 +192,7 @@ impl Scanner {
     }
 
     fn add(&mut self, kind: TokenType) {
+        self.last_token_line = self.line;
         self.tokens.push(Token {
             kind,
             lexeme: self.src[self.start..self.current].iter().collect(),
