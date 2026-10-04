@@ -115,9 +115,19 @@ impl Scanner {
     }
 
     fn number(&mut self) {
-        // TODO(you): scan a number literal: digits, then a fractional part only when a digit
-        //            follows the dot (1.4).
-        todo!("number")
+        while self.is_digit(self.peek()) {
+            self.advance();
+        }
+
+        if self.peek() == '.' && self.is_digit(self.peek_next()) {
+            self.advance();
+            while self.is_digit(self.peek()) {
+                self.advance();
+            }
+        }
+
+        self.add(TokenType::Number);
+
     }
 
     fn identifier(&mut self) {
