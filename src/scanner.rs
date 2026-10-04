@@ -125,15 +125,32 @@ impl Scanner {
                 self.advance();
             }
         }
-
         self.add(TokenType::Number);
-
     }
 
     fn identifier(&mut self) {
-        // TODO(you): scan an identifier, then decide whether it is a keyword; keyword() in
-        //            token.rs does the lookup (1.2, 1.3).
-        todo!("identifier")
+        while self.is_identifier_part(self.peek()) {
+            self.advance();
+        }
+
+        let text: String = self.src[self.start..self.current].iter().collect();
+        if let Some(kind) = keyword(&text) {
+            self.add(kind);
+        } else {
+            self.add(TokenType::Identifier);
+        }
+    }
+
+    fn is_identifier_start(&self, c: char) -> bool {
+        c == '_' || c.is_ascii_alphabetic()
+    }
+
+    fn is_identifier_part(&self, c: char) -> bool {
+        c == '_' || c.is_ascii_alphanumeric()
+    }
+
+    fn is_digit(&self, c: char) -> bool {
+        c.is_ascii_digit()
     }
 
     // --- primitives ---------------------------------------------------------------
