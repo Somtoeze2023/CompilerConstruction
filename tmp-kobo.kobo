@@ -1,0 +1,2 @@
+var x = "hi";
+print x;
