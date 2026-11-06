@@ -45,22 +45,77 @@ impl Parser {
     // --- declarations and statements ------------------------------------------------
 
     fn declaration(&mut self) -> Parsed<Stmt> {
-        // TODO(you): spec 3.1: a declaration is a fun, a var, or a statement. This is also
-        //            where an error is caught and synchronise() runs.
-        // TEMPORARY: enough of this rule to let the ones below it run. Replace it in its
-        //            own week; the marking tests for it fail until you do.
+         if self.matches(&[TokenType::Fun]) {
+            return self.fun_declaration();
+        }
+        if self.matches(&[TokenType::Var]) {
+            return self.var_declaration();
+        }
         self.statement()
     }
 
     fn fun_declaration(&mut self) -> Parsed<Stmt> {
-        // TODO(you): spec 3.1: a function declaration, its parameter list, and its body.
-        //            Functions are hoisted into Program::functions.
-        todo!("fun_declaration")
+        let name = self.consume(TokenType::Identifier, "Expect function name.")?;
+        let function_name = name.lexeme.clone();
+
+        self.consume(TokenType::LParen, "Expect '(' after function name.")?;
+
+        let mut params = Vec::new();
+        if !self.check(TokenType::RParen) {
+            loop {
+                if !self.check(TokenType::Identifier) {
+                    self.error("Expect parameter name.");
+                    return Err(());
+                }
+                let param = self.consume(TokenType::Identifier, "Expect parameter name.")?;
+                params.push(param.lexeme.clone());
+                if !self.matches(&[TokenType::Comma]) {
+                    break;
+                }
+                if self.check(TokenType::RParen) {
+                    self.error("Expect parameter name.");
+                    return Err(());
+                }
+            }
+        }
+
+        self.consume(TokenType::RParen, "Expect ')' after parameters.")?;
+        self.consume(TokenType::LBrace, "Expect '{' before function body.")?;
+
+        let body = self.block()?;
+        let index = self.program.functions.len();
+        self.program.functions.push(Function {
+            name: function_name.clone(),
+            params: params.clone(),
+            body,
+            line: name.line,
+        });
+
+        Ok(Stmt::Function {
+            index,
+            name: function_name,
+            slot: None,
+        })
     }
 
     fn var_declaration(&mut self) -> Parsed<Stmt> {
-        // TODO(you): spec 3.1: 'var' name ( '=' expression )? ';'
-        todo!("var_declaration")
+        let name = self.consume(TokenType::Identifier, "Expect variable name.")?;
+        let mut initialiser = None;
+
+        if self.matches(&[TokenType::Equal]) {
+            initialiser = Some(self.expression()?);
+        }
+
+        self.consume(
+            TokenType::Semicolon,
+            "Expect ';' after variable declaration.",
+        )?;
+
+        Ok(Stmt::Var {
+            name,
+            initialiser,
+            slot: None,
+        })
     }
 
     fn statement(&mut self) -> Parsed<Stmt> {
