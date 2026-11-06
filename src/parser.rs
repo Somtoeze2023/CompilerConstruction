@@ -126,21 +126,22 @@ impl Parser {
     }
 
     fn statement_inner(&mut self) -> Parsed<Stmt> {
-        // TODO(you): spec 3.1: pick the statement by its leading token.
-        // TEMPORARY: enough of this rule to let the ones below it run. Replace it in its
-        //            own week; the marking tests for it fail until you do.
-        // Named rather than misreported, so an `if` says what it is instead of failing
-        // as a broken expression.
-        if self.check(TokenType::LBrace) || self.check(TokenType::If)
-            || self.check(TokenType::While) || self.check(TokenType::Return)
-        {
-            self.error("This statement form is not written yet.");
-            return Err(());
-        }
         if self.matches(&[TokenType::Print]) {
             let value = self.expression()?;
             self.consume(TokenType::Semicolon, "Expect ';' after value.")?;
             Ok(Stmt::Print(value))
+        } else if self.matches(&[TokenType::If]) {
+            self.if_statement()
+        } else if self.matches(&[TokenType::While]) {
+            self.while_statement()
+        } else if self.matches(&[TokenType::Return]) {
+            self.return_statement()
+        } else if self.matches(&[TokenType::LBrace]) {
+            let body = self.block()?;
+            Ok(Stmt::Block {
+                body,
+                locals: 0,
+            })
         } else {
             let expr = self.expression()?;
             self.consume(TokenType::Semicolon, "Expect ';' after expression.")?;
@@ -149,19 +150,42 @@ impl Parser {
     }
 
     fn return_statement(&mut self) -> Parsed<Stmt> {
-        // TODO(you): spec 3.1: 'return' expression? ';'
-        todo!("return_statement")
+        let value = if self.check(TokenType::Semicolon) {
+            None
+        } else {
+            Some(self.expression()?)
+        };
+
+        self.consume(TokenType::Semicolon, "Expect ';' after return value.")?;
+        Ok(Stmt::Return(value))
     }
 
     fn if_statement(&mut self) -> Parsed<Stmt> {
-        // TODO(you): spec 3.1. The dangling else binds to the nearest unmatched if , the
-        //            recursion decides that, not the grammar.
-        todo!("if_statement")
+        self.consume(TokenType::LParen, "Expect '(' after 'if'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RParen, "Expect ')' after if condition.")?;
+
+        let then_branch = Box::new(self.statement()?);
+        let else_branch = if self.matches(&[TokenType::Else]) {
+            Some(Box::new(self.statement()?))
+        } else {
+            None
+        };
+
+        Ok(Stmt::If {
+            condition,
+            then_branch,
+            else_branch,
+        })
     }
 
     fn while_statement(&mut self) -> Parsed<Stmt> {
-        // TODO(you): spec 3.1: 'while' '(' expression ')' statement
-        todo!("while_statement")
+        self.consume(TokenType::LParen, "Expect '(' after 'while'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RParen, "Expect ')' after while condition.")?;
+
+        let body = Box::new(self.statement()?);
+        Ok(Stmt::While { condition, body })
     }
 
     /// The `{` is already consumed. Declarations, not statements: a block is where a
