@@ -342,30 +342,76 @@ impl Parser {
     }
 
     fn unary(&mut self) -> Parsed<Expr> {
-        // TODO(you): spec 3.2: unary operators are right-associative.
-        // TEMPORARY: enough of this rule to let the ones below it run. Replace it in its
-        //            own week; the marking tests for it fail until you do.
+        if self.matches(&[TokenType::Bang, TokenType::Minus]) {
+            let op = self.previous();
+            let right = self.unary()?;
+            return Ok(Expr::Unary {
+                op,
+                right: Box::new(right),
+            });
+        }
+
         self.call()
     }
 
     /// A loop, not recursion: `f(1)(2)` is one callee called twice, and the grammar says
     /// `call → primary ( "(" arguments? ")" )*` for exactly that reason.
     fn call(&mut self) -> Parsed<Expr> {
-        // TODO(you): spec 3.2: call -> primary ( '(' arguments? ')' )*. That is a loop, not
-        //            recursion; f(1)(2) is one callee called twice.
-        // TEMPORARY: enough of this rule to let the ones below it run. Replace it in its
-        //            own week; the marking tests for it fail until you do.
-        self.primary()
+        let mut expr = self.primary()?;
+
+        while self.matches(&[TokenType::LParen]) {
+            let mut args = Vec::new();
+            if !self.check(TokenType::RParen) {
+                loop {
+                    args.push(self.assignment()?);
+                    if !self.matches(&[TokenType::Comma]) {
+                        break;
+                    }
+                }
+            }
+
+            let paren = self.consume(TokenType::RParen, "Expect ')' after arguments.")?;
+            expr = Expr::Call {
+                callee: Box::new(expr),
+                paren,
+                args,
+            };
+        }
+
+        Ok(expr)
     }
 
     fn primary(&mut self) -> Parsed<Expr> {
-        // TODO(you): spec 3.2: literals, identifiers and grouping.
-        // TEMPORARY: enough of this rule to let the ones below it run. Replace it in its
-        //            own week; the marking tests for it fail until you do.
+        if self.matches(&[TokenType::False]) {
+            return Ok(self.literal(Value::Bool(false)));
+        }
+        if self.matches(&[TokenType::True]) {
+            return Ok(self.literal(Value::Bool(true)));
+        }
+        if self.matches(&[TokenType::Nil]) {
+            return Ok(self.literal(Value::Nil));
+        }
         if self.matches(&[TokenType::Number]) {
             let n = self.previous().lexeme.parse::<f64>().unwrap();
             return Ok(self.literal(Value::Number(n)));
         }
+        if self.matches(&[TokenType::Str]) {
+            let raw = self.previous().lexeme;
+            let value = raw[1..raw.len() - 1].to_string();
+            return Ok(self.literal(Value::Str(value)));
+        }
+        if self.matches(&[TokenType::Identifier]) {
+            return Ok(Expr::Variable {
+                name: self.previous(),
+                at: Resolved::default(),
+            });
+        }
+        if self.matches(&[TokenType::LParen]) {
+            let inner = self.expression()?;
+            self.consume(TokenType::RParen, "Expect ')' after expression.")?;
+            return Ok(Expr::Grouping(Box::new(inner)));
+        }
+
         self.error("Expect expression.");
         Err(())
     }
@@ -381,16 +427,27 @@ impl Parser {
     /// the parse makes progress; a recovery that could stand still would hang the
     /// compiler on the file that triggered it.
     fn synchronise(&mut self) {
-        // TODO(you): spec 5.2: after an error, discard tokens until just past a ';' or on a
-        //            statement keyword, so one mistake costs one message.
-        // TEMPORARY: enough of this rule to let the ones below it run. Replace it in its
-        //            own week; the marking tests for it fail until you do.
         self.depth = 0;
         while !self.at_end() {
-            self.current += 1;
-            if self.previous().kind == TokenType::Semicolon {
+            if self.check(TokenType::Semicolon) {
+                self.current += 1;
                 return;
             }
+
+            if matches!(
+                self.peek().kind,
+                TokenType::Fun
+                    | TokenType::Var
+                    | TokenType::If
+                    | TokenType::While
+                    | TokenType::Print
+                    | TokenType::Return
+                    | TokenType::LBrace
+            ) {
+                return;
+            }
+
+            self.current += 1;
         }
     }
 
